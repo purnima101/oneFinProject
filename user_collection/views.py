@@ -1,50 +1,42 @@
-
-from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.cache import cache
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from user_collection.manager import UserCollectionManager
-
+from user_collection.manager import UserManagement, CollectionManagement
+from user_collection.serializers import UserSerializer
+from rest_framework import status
 
 class RegisterUser(APIView):
     @staticmethod
     def post(request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = User.objects.create_user(username=username, password=password)
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-        refresh_token = str(refresh)
-
-        # Store tokens in session
-        request.session['access_token'] = access_token
-        request.session['refresh_token'] = refresh_token
-
-        return Response({'access_token': access_token})
+        try:
+            serializer = UserSerializer(data=request.data)
+            if serializer.is_valid():
+                user = serializer.save()
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'access_token': str(refresh.access_token)
+                }, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"result": "failure", "message": str(e)}, 500)
 
 
 class FetchAllMovies(APIView):
     @staticmethod
     def get(request):
         try:
-            data = UserCollectionManager.getAllMovies()
+            data = UserManagement.get_movies_list()
             return Response({"result" : "success", "data": data}, 200)
         except Exception as e:
             return Response({"result" : "failure", "message":str(e)}, 500)
 
 
-# class RegisterUser(APIView):
-#     @staticmethod
-#     def post(request):
-#         try:
-#             return "10"
-#         except Exception as e:
-#             return Response({"result": "failure", "message": str(e)}, 500)
 
 
 class UserCollection(APIView):
+    permission_classes = [IsAuthenticated]
     @staticmethod
     def get(request):
         try:
@@ -55,7 +47,9 @@ class UserCollection(APIView):
     @staticmethod
     def post(request):
         try:
-            return "10"
+            data = request.data
+            get_movies = CollectionManagement.add_new_collection(request, data)
+            return Response(data=get_movies, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"result": "failure", "message": str(e)}, 500)
 
